@@ -24,7 +24,7 @@ fn get_in_slice<'a, T>(slice: &'a [u8], offset: usize) -> Option<&'a T> {
 struct Layout {
     name: String,
     kind: LayoutKind,
-    children: Option<Vec<Layout>>,
+    fields: Option<Vec<Layout>>,
 }
 
 enum LayoutKind {
@@ -49,7 +49,7 @@ impl Layout {
             LayoutKind::Struct => {
                 let mut total_size = 0;
                 let mut offset = 0;
-                for field in self.children.as_ref().unwrap().iter() {
+                for field in self.fields.as_ref().unwrap().iter() {
                     total_size = total_size + field.size_in_bytes(bytes);
                     offset = offset + field.size_in_bytes(&bytes[offset..]);
                 }
@@ -80,7 +80,7 @@ fn build_value_from_layout(layout: &Layout, bytes: &[u8]) -> Value {
         LayoutKind::Struct => {
             let mut value = Map::new();
             let mut offset = 0;
-            for field in layout.children.as_ref().unwrap().iter() {
+            for field in layout.fields.as_ref().unwrap().iter() {
                 value.insert(
                     field.name.clone(),
                     build_value_from_layout(&field, &bytes[offset..]),
@@ -115,7 +115,7 @@ fn build_bytes_from_layout(layout: &Layout, value: &Value) -> Vec<u8> {
         LayoutKind::Struct => {
             let mut bytes = Vec::new();
             let value_object = value.as_object().unwrap();
-            for field in layout.children.as_ref().unwrap().iter() {
+            for field in layout.fields.as_ref().unwrap().iter() {
                 let field_value = value_object.get(&field.name).unwrap();
                 let field_bytes = build_bytes_from_layout(&field, field_value);
                 for byte in field_bytes.iter() {
@@ -179,21 +179,21 @@ fn main() {
     let person_layout = Layout {
         name: String::from("Person"),
         kind: LayoutKind::Struct,
-        children: Some(vec![
+        fields: Some(vec![
             Layout {
                 name: String::from("age"),
                 kind: LayoutKind::U8,
-                children: None,
+                fields: None,
             },
             Layout {
                 name: String::from("height"),
                 kind: LayoutKind::U16,
-                children: None,
+                fields: None,
             },
             Layout {
                 name: String::from("name"),
                 kind: LayoutKind::String,
-                children: None,
+                fields: None,
             },
         ]),
     };
