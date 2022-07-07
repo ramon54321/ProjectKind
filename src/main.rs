@@ -24,7 +24,6 @@ fn get_in_slice<'a, T>(slice: &'a [u8], offset: usize) -> Option<&'a T> {
 struct Layout {
     name: String,
     kind: LayoutKind,
-    offset: u32,
     fields: Vec<Layout>,
 }
 
@@ -45,16 +44,22 @@ enum LayoutKind {
 }
 
 impl Layout {
-    fn size_in_bytes(&self) -> u32 {
+    fn size_in_bytes(&self, bytes: &[u8]) -> usize {
         match self.kind {
             LayoutKind::Struct => {
                 let mut total_size = 0;
+                let mut offset = 0;
                 for field in self.fields.iter() {
-                    total_size = total_size + field.size_in_bytes();
+                    total_size = total_size + field.size_in_bytes(bytes);
+                    offset = offset + field.size_in_bytes(&bytes[offset..]);
                 }
                 total_size
             }
-            LayoutKind::String => 0,
+            LayoutKind::String => {
+                let length_bytes: [u8; 8] = bytes[..8].try_into().unwrap();
+                let length = usize::from_le_bytes(length_bytes);
+                length
+            }
             LayoutKind::Bool => 1,
             LayoutKind::U8 => 1,
             LayoutKind::U16 => 2,
@@ -74,52 +79,34 @@ fn build_value_from_layout(layout: &Layout, bytes: &[u8]) -> Value {
     match layout.kind {
         LayoutKind::Struct => {
             let mut value = Map::new();
+            let mut offset = 0;
             for field in layout.fields.iter() {
-                value.insert(field.name.clone(), build_value_from_layout(&field, &bytes));
+                value.insert(
+                    field.name.clone(),
+                    build_value_from_layout(&field, &bytes[offset..]),
+                );
+                offset = offset + field.size_in_bytes(&bytes[offset..]);
             }
             Value::from(value)
         }
         LayoutKind::String => {
-            let start = layout.offset as usize;
-            let length_bytes: [u8; 8] = bytes[start..(start + 8)].try_into().unwrap();
+            let length_bytes: [u8; 8] = bytes[..8].try_into().unwrap();
             let length = usize::from_le_bytes(length_bytes);
-            let start = start + 8;
+            let start = 8;
             let end = start + length;
             Value::from(String::from_utf8(bytes[start..end].to_vec()).unwrap())
         }
-        LayoutKind::Bool => {
-            Value::from(*get_in_slice::<u8>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
-        LayoutKind::U8 => {
-            Value::from(*get_in_slice::<u8>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
-        LayoutKind::U16 => {
-            Value::from(*get_in_slice::<u16>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
-        LayoutKind::U32 => {
-            Value::from(*get_in_slice::<u32>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
-        LayoutKind::U64 => {
-            Value::from(*get_in_slice::<u64>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
-        LayoutKind::I8 => {
-            Value::from(*get_in_slice::<i8>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
-        LayoutKind::I16 => {
-            Value::from(*get_in_slice::<i16>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
-        LayoutKind::I32 => {
-            Value::from(*get_in_slice::<i32>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
-        LayoutKind::I64 => {
-            Value::from(*get_in_slice::<i64>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
-        LayoutKind::F32 => {
-            Value::from(*get_in_slice::<f32>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
-        LayoutKind::F64 => {
-            Value::from(*get_in_slice::<f64>(&bytes[(layout.offset as usize)..], 0).unwrap())
-        }
+        LayoutKind::Bool => Value::from(*get_in_slice::<u8>(&bytes, 0).unwrap()),
+        LayoutKind::U8 => Value::from(*get_in_slice::<u8>(&bytes, 0).unwrap()),
+        LayoutKind::U16 => Value::from(*get_in_slice::<u16>(&bytes, 0).unwrap()),
+        LayoutKind::U32 => Value::from(*get_in_slice::<u32>(&bytes, 0).unwrap()),
+        LayoutKind::U64 => Value::from(*get_in_slice::<u64>(&bytes, 0).unwrap()),
+        LayoutKind::I8 => Value::from(*get_in_slice::<i8>(&bytes, 0).unwrap()),
+        LayoutKind::I16 => Value::from(*get_in_slice::<i16>(&bytes, 0).unwrap()),
+        LayoutKind::I32 => Value::from(*get_in_slice::<i32>(&bytes, 0).unwrap()),
+        LayoutKind::I64 => Value::from(*get_in_slice::<i64>(&bytes, 0).unwrap()),
+        LayoutKind::F32 => Value::from(*get_in_slice::<f32>(&bytes, 0).unwrap()),
+        LayoutKind::F64 => Value::from(*get_in_slice::<f64>(&bytes, 0).unwrap()),
     }
 }
 
@@ -225,27 +212,30 @@ fn main() {
     // String --Custom--> Bytes --Bincode--> Typed
     //
 
+    println!();
+    println!("--Single--");
+
     let person_layout = Layout {
         name: String::from("Person"),
         kind: LayoutKind::Struct,
-        offset: 0,
+        //offset: 0,
         fields: vec![
             Layout {
                 name: String::from("age"),
                 kind: LayoutKind::U8,
-                offset: 0,
+                //offset: 0,
                 fields: Vec::new(),
             },
             Layout {
                 name: String::from("height"),
                 kind: LayoutKind::U16,
-                offset: 1,
+                //offset: 1,
                 fields: Vec::new(),
             },
             Layout {
                 name: String::from("name"),
                 kind: LayoutKind::String,
-                offset: 3,
+                //offset: 3,
                 fields: Vec::new(),
             },
         ],
@@ -283,6 +273,18 @@ fn main() {
     let person_two_typed = bincode::deserialize::<Person>(&person_two_bytes).unwrap();
     println!("Person Typed: {:?}", person_typed);
     println!("Person Two Typed: {:?}", person_two_typed);
+
+    println!();
+    println!("--Array--");
+
+    let person_array_typed = vec![person_typed, person_two_typed];
+    println!("Person Array Typed: {:?}", person_array_typed);
+
+    let person_array_bytes = bincode::serialize(&person_array_typed).unwrap();
+    println!("Person Array Bytes: {:?}", person_array_bytes);
+
+    let person_array_string = serialize(&person_layout, &person_array_bytes);
+    println!("Person Array String: {:?}", person_array_string);
 
     //let mut multiple_person_bytes = person_bytes_after
     //.iter()
