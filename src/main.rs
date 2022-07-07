@@ -123,6 +123,7 @@ fn build_value_from_layout(layout: &Layout, bytes: &[u8]) -> Value {
             let end = start + length;
             Value::from(String::from_utf8(bytes[start..end].to_vec()).unwrap())
         }
+        // TODO: Bool
         LayoutKind::Bool => Value::from(*get_in_slice::<u8>(&bytes, 0).unwrap()),
         LayoutKind::U8 => Value::from(*get_in_slice::<u8>(&bytes, 0).unwrap()),
         LayoutKind::U16 => Value::from(*get_in_slice::<u16>(&bytes, 0).unwrap()),
