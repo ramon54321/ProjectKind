@@ -291,4 +291,10 @@ fn main() {
 
     let person_array_string = serialize(&person_array_layout, &person_array_bytes);
     println!("Person Array String: {}", person_array_string);
+
+    let person_array_bytes = deserialize(&person_array_layout, &person_array_string);
+    println!("Person Array Bytes: {:?}", person_array_bytes);
+
+    let person_array_typed = bincode::deserialize::<Vec<Person>>(&person_array_bytes).unwrap();
+    println!("Person Array Typed: {:?}", person_array_typed);
 }
