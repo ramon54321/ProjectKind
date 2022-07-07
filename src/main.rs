@@ -10,7 +10,7 @@ struct Person {
     height: u16,
 }
 
-fn get_in_slice<'a, T>(slice: &'a Vec<u8>, offset: usize) -> Option<&'a T> {
+fn get_in_slice<'a, T>(slice: &'a [u8], offset: usize) -> Option<&'a T> {
     let size = size_of::<T>();
     if offset + size > slice.len() {
         return None;
@@ -26,36 +26,94 @@ unsafe fn from_bytes<T>(bytes: &mut Vec<u8>) -> &mut [T] {
 
 struct Layout {
     name: String,
+    kind: LayoutKind,
+    offset: u32,
+    fields: Vec<Layout>,
 }
 
-fn build_value_from_layout(layout: &Layout, bytes: &Vec<u8>) -> Value {
-    let bytes_per_object = 3; // From layout
-    if bytes_per_object == bytes.len() {
-        let mut value = Map::new();
-        value.insert(
-            String::from("age"),
-            Value::from(*get_in_slice::<u8>(&bytes, 0).unwrap()),
-        );
-        value.insert(
-            String::from("height"),
-            Value::from(*get_in_slice::<u16>(&bytes, 1).unwrap()),
-        );
-        return Value::from(value);
+enum LayoutKind {
+    Struct,
+    Bool,
+    U8,
+    U16,
+    U32,
+    U64,
+    I8,
+    I16,
+    I32,
+    I64,
+    F32,
+    F64,
+}
+
+impl Layout {
+    fn size_in_bytes(&self) -> u32 {
+        match self.kind {
+            LayoutKind::Struct => {
+                let mut total_size = 0;
+                for field in self.fields.iter() {
+                    total_size = total_size + field.size_in_bytes();
+                }
+                total_size
+            }
+            LayoutKind::Bool => 1,
+            LayoutKind::U8 => 1,
+            LayoutKind::U16 => 2,
+            LayoutKind::U32 => 4,
+            LayoutKind::U64 => 8,
+            LayoutKind::I8 => 1,
+            LayoutKind::I16 => 2,
+            LayoutKind::I32 => 4,
+            LayoutKind::I64 => 8,
+            LayoutKind::F32 => 4,
+            LayoutKind::F64 => 8,
+        }
     }
-    let mut value_array = Vec::new();
-    for offset in (0..bytes.len()).step_by(bytes_per_object) {
-        let mut value = Map::new();
-        value.insert(
-            String::from("age"),
-            Value::from(*get_in_slice::<u8>(&bytes, offset + 0).unwrap()),
-        );
-        value.insert(
-            String::from("height"),
-            Value::from(*get_in_slice::<u16>(&bytes, offset + 1).unwrap()),
-        );
-        value_array.push(Value::from(value));
+}
+
+fn build_value_from_layout(layout: &Layout, bytes: &[u8]) -> Value {
+    match layout.kind {
+        LayoutKind::Struct => {
+            let mut value = Map::new();
+            for field in layout.fields.iter() {
+                value.insert(field.name.clone(), build_value_from_layout(&field, &bytes));
+            }
+            Value::from(value)
+        }
+        LayoutKind::Bool => {
+            Value::from(*get_in_slice::<u8>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
+        LayoutKind::U8 => {
+            Value::from(*get_in_slice::<u8>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
+        LayoutKind::U16 => {
+            Value::from(*get_in_slice::<u16>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
+        LayoutKind::U32 => {
+            Value::from(*get_in_slice::<u32>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
+        LayoutKind::U64 => {
+            Value::from(*get_in_slice::<u64>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
+        LayoutKind::I8 => {
+            Value::from(*get_in_slice::<i8>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
+        LayoutKind::I16 => {
+            Value::from(*get_in_slice::<i16>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
+        LayoutKind::I32 => {
+            Value::from(*get_in_slice::<i32>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
+        LayoutKind::I64 => {
+            Value::from(*get_in_slice::<i64>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
+        LayoutKind::F32 => {
+            Value::from(*get_in_slice::<f32>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
+        LayoutKind::F64 => {
+            Value::from(*get_in_slice::<f64>(&bytes[(layout.offset as usize)..], 0).unwrap())
+        }
     }
-    Value::from(value_array)
 }
 
 fn build_bytes_from_layout(layout: &Layout, value: Value) -> Vec<u8> {
@@ -113,7 +171,19 @@ fn build_bytes_from_layout(layout: &Layout, value: Value) -> Vec<u8> {
 }
 
 fn serialize(layout: &Layout, bytes: &Vec<u8>) -> String {
-    let value = build_value_from_layout(layout, bytes);
+    let object_size = layout.size_in_bytes() as usize;
+    let value = if bytes.len() > object_size {
+        let object_count = bytes.len() / object_size;
+        let mut value_array = Vec::new();
+        for i in 0..object_count {
+            let value =
+                build_value_from_layout(layout, &bytes[(i * layout.size_in_bytes() as usize)..]);
+            value_array.push(value);
+        }
+        Value::from(value_array)
+    } else {
+        build_value_from_layout(layout, &bytes)
+    };
     serde_json::to_string(&value).unwrap()
 }
 
@@ -129,6 +199,22 @@ fn main() {
     };
     let person_layout = Layout {
         name: String::from("Person"),
+        kind: LayoutKind::Struct,
+        offset: 0,
+        fields: vec![
+            Layout {
+                name: String::from("age"),
+                kind: LayoutKind::U8,
+                offset: 0,
+                fields: Vec::new(),
+            },
+            Layout {
+                name: String::from("height"),
+                kind: LayoutKind::U16,
+                offset: 1,
+                fields: Vec::new(),
+            },
+        ],
     };
 
     let person_bytes = bincode::serialize(&person).unwrap();
