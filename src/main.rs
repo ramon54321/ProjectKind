@@ -116,56 +116,49 @@ fn build_value_from_layout(layout: &Layout, bytes: &[u8]) -> Value {
     }
 }
 
-fn build_bytes_from_layout(layout: &Layout, value: Value) -> Vec<u8> {
+fn build_bytes_from_layout(layout: &Layout, value: &Value) -> Vec<u8> {
     let mut bytes = Vec::new();
-    if let Some(array_value) = value.as_array() {
-        for value in array_value.iter() {
-            let field_value = value
-                .as_object()
-                .unwrap()
-                .get("age")
-                .unwrap()
-                .as_u64()
-                .unwrap()
-                .to_be_bytes();
-            for byte in field_value[7..8].iter().rev() {
-                bytes.push(*byte);
+    for field in layout.fields.iter() {
+        let field_value = value.as_object().unwrap().get(&field.name).unwrap();
+        let field_bytes = match field.kind {
+            LayoutKind::Struct => build_bytes_from_layout(&field, field_value),
+            LayoutKind::Bool => {
+                if field_value.as_bool().unwrap() {
+                    vec![1u8]
+                } else {
+                    vec![0u8]
+                }
             }
-            let field_value = value
-                .as_object()
-                .unwrap()
-                .get("height")
-                .unwrap()
-                .as_u64()
-                .unwrap()
-                .to_be_bytes();
-            for byte in field_value[6..8].iter().rev() {
-                bytes.push(*byte);
-            }
+            LayoutKind::U8 => (field_value.as_u64().unwrap() as u8).to_be_bytes().to_vec(),
+            LayoutKind::U16 => (field_value.as_u64().unwrap() as u16)
+                .to_le_bytes()
+                .to_vec(),
+            LayoutKind::U32 => (field_value.as_u64().unwrap() as u32)
+                .to_le_bytes()
+                .to_vec(),
+            LayoutKind::U64 => (field_value.as_u64().unwrap() as u64)
+                .to_le_bytes()
+                .to_vec(),
+            LayoutKind::I8 => (field_value.as_i64().unwrap() as i8).to_be_bytes().to_vec(),
+            LayoutKind::I16 => (field_value.as_i64().unwrap() as i16)
+                .to_le_bytes()
+                .to_vec(),
+            LayoutKind::I32 => (field_value.as_i64().unwrap() as i32)
+                .to_le_bytes()
+                .to_vec(),
+            LayoutKind::I64 => (field_value.as_i64().unwrap() as i64)
+                .to_le_bytes()
+                .to_vec(),
+            LayoutKind::F32 => (field_value.as_f64().unwrap() as f32)
+                .to_le_bytes()
+                .to_vec(),
+            LayoutKind::F64 => (field_value.as_f64().unwrap() as f64)
+                .to_le_bytes()
+                .to_vec(),
+        };
+        for byte in field_bytes.iter() {
+            bytes.push(*byte);
         }
-        return bytes;
-    }
-    let field_value = value
-        .as_object()
-        .unwrap()
-        .get("age")
-        .unwrap()
-        .as_u64()
-        .unwrap()
-        .to_be_bytes();
-    for byte in field_value[7..8].iter().rev() {
-        bytes.push(*byte);
-    }
-    let field_value = value
-        .as_object()
-        .unwrap()
-        .get("height")
-        .unwrap()
-        .as_u64()
-        .unwrap()
-        .to_be_bytes();
-    for byte in field_value[6..8].iter().rev() {
-        bytes.push(*byte);
     }
     bytes
 }
@@ -189,7 +182,20 @@ fn serialize(layout: &Layout, bytes: &Vec<u8>) -> String {
 
 fn deserialize(layout: &Layout, serial: String) -> Vec<u8> {
     let value = serde_json::from_str::<Value>(&serial).unwrap();
-    build_bytes_from_layout(layout, value)
+    if value.is_array()
+    /* && layout.kind != LayoutKind::Array */
+    {
+        let value_array = value.as_array().unwrap();
+        let mut bytes = Vec::new();
+        for value in value_array.iter() {
+            let value_bytes = build_bytes_from_layout(&layout, &value);
+            for byte in value_bytes.iter() {
+                bytes.push(*byte);
+            }
+        }
+        return bytes;
+    }
+    build_bytes_from_layout(layout, &value)
 }
 
 fn main() {
