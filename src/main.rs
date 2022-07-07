@@ -111,98 +111,59 @@ fn build_value_from_layout(layout: &Layout, bytes: &[u8]) -> Value {
 }
 
 fn build_bytes_from_layout(layout: &Layout, value: &Value) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    for field in layout.fields.iter() {
-        let field_value = value.as_object().unwrap().get(&field.name).unwrap();
-        let field_bytes = match field.kind {
-            LayoutKind::Struct => build_bytes_from_layout(&field, field_value),
-            LayoutKind::String => {
-                let field_value_string = field_value.as_str().unwrap();
-                let mut bytes = Vec::new();
-                let length_bytes = field_value_string.len().to_le_bytes();
-                for byte in length_bytes.iter() {
+    match layout.kind {
+        LayoutKind::Struct => {
+            let mut bytes = Vec::new();
+            let value_object = value.as_object().unwrap();
+            for field in layout.fields.iter() {
+                let field_value = value_object.get(&field.name).unwrap();
+                let field_bytes = build_bytes_from_layout(&field, field_value);
+                for byte in field_bytes.iter() {
                     bytes.push(*byte);
                 }
-                let string_bytes = field_value_string.as_bytes();
-                for byte in string_bytes.iter() {
-                    bytes.push(*byte);
-                }
-                bytes
             }
-            LayoutKind::Bool => {
-                if field_value.as_bool().unwrap() {
-                    vec![1u8]
-                } else {
-                    vec![0u8]
-                }
-            }
-            LayoutKind::U8 => (field_value.as_u64().unwrap() as u8).to_be_bytes().to_vec(),
-            LayoutKind::U16 => (field_value.as_u64().unwrap() as u16)
-                .to_le_bytes()
-                .to_vec(),
-            LayoutKind::U32 => (field_value.as_u64().unwrap() as u32)
-                .to_le_bytes()
-                .to_vec(),
-            LayoutKind::U64 => (field_value.as_u64().unwrap() as u64)
-                .to_le_bytes()
-                .to_vec(),
-            LayoutKind::I8 => (field_value.as_i64().unwrap() as i8).to_be_bytes().to_vec(),
-            LayoutKind::I16 => (field_value.as_i64().unwrap() as i16)
-                .to_le_bytes()
-                .to_vec(),
-            LayoutKind::I32 => (field_value.as_i64().unwrap() as i32)
-                .to_le_bytes()
-                .to_vec(),
-            LayoutKind::I64 => (field_value.as_i64().unwrap() as i64)
-                .to_le_bytes()
-                .to_vec(),
-            LayoutKind::F32 => (field_value.as_f64().unwrap() as f32)
-                .to_le_bytes()
-                .to_vec(),
-            LayoutKind::F64 => (field_value.as_f64().unwrap() as f64)
-                .to_le_bytes()
-                .to_vec(),
-        };
-        for byte in field_bytes.iter() {
-            bytes.push(*byte);
+            bytes
         }
+        LayoutKind::String => {
+            let value_string = value.as_str().unwrap();
+            let mut bytes = Vec::new();
+            let length_bytes = value_string.len().to_le_bytes();
+            for byte in length_bytes.iter() {
+                bytes.push(*byte);
+            }
+            let string_bytes = value_string.as_bytes();
+            for byte in string_bytes.iter() {
+                bytes.push(*byte);
+            }
+            bytes
+        }
+        LayoutKind::Bool => {
+            if value.as_bool().unwrap() {
+                vec![1u8]
+            } else {
+                vec![0u8]
+            }
+        }
+        LayoutKind::U8 => (value.as_u64().unwrap() as u8).to_be_bytes().to_vec(),
+        LayoutKind::U16 => (value.as_u64().unwrap() as u16).to_le_bytes().to_vec(),
+        LayoutKind::U32 => (value.as_u64().unwrap() as u32).to_le_bytes().to_vec(),
+        LayoutKind::U64 => (value.as_u64().unwrap() as u64).to_le_bytes().to_vec(),
+        LayoutKind::I8 => (value.as_i64().unwrap() as i8).to_be_bytes().to_vec(),
+        LayoutKind::I16 => (value.as_i64().unwrap() as i16).to_le_bytes().to_vec(),
+        LayoutKind::I32 => (value.as_i64().unwrap() as i32).to_le_bytes().to_vec(),
+        LayoutKind::I64 => (value.as_i64().unwrap() as i64).to_le_bytes().to_vec(),
+        LayoutKind::F32 => (value.as_f64().unwrap() as f32).to_le_bytes().to_vec(),
+        LayoutKind::F64 => (value.as_f64().unwrap() as f64).to_le_bytes().to_vec(),
     }
-    bytes
 }
 
 fn serialize(layout: &Layout, bytes: &Vec<u8>) -> String {
-    //let object_size = layout.size_in_bytes() as usize;
-    //let value = if bytes.len() > object_size {
-    //let object_count = bytes.len() / object_size;
-    //let mut value_array = Vec::new();
-    //for i in 0..object_count {
-    //let value =
-    //build_value_from_layout(layout, &bytes[(i * layout.size_in_bytes() as usize)..]);
-    //value_array.push(value);
-    //}
-    //Value::from(value_array)
-    //} else {
-    //build_value_from_layout(layout, &bytes)
-    //};
     let value = build_value_from_layout(layout, &bytes);
     serde_json::to_string(&value).unwrap()
 }
 
 fn deserialize(layout: &Layout, serial: &String) -> Vec<u8> {
     let value = serde_json::from_str::<Value>(serial).unwrap();
-    if value.is_array()
-    /* && layout.kind != LayoutKind::Array */
-    {
-        let value_array = value.as_array().unwrap();
-        let mut bytes = Vec::new();
-        for value in value_array.iter() {
-            let value_bytes = build_bytes_from_layout(&layout, &value);
-            for byte in value_bytes.iter() {
-                bytes.push(*byte);
-            }
-        }
-        return bytes;
-    }
     build_bytes_from_layout(layout, &value)
 }
 
@@ -218,24 +179,20 @@ fn main() {
     let person_layout = Layout {
         name: String::from("Person"),
         kind: LayoutKind::Struct,
-        //offset: 0,
         fields: vec![
             Layout {
                 name: String::from("age"),
                 kind: LayoutKind::U8,
-                //offset: 0,
                 fields: Vec::new(),
             },
             Layout {
                 name: String::from("height"),
                 kind: LayoutKind::U16,
-                //offset: 1,
                 fields: Vec::new(),
             },
             Layout {
                 name: String::from("name"),
                 kind: LayoutKind::String,
-                //offset: 3,
                 fields: Vec::new(),
             },
         ],
@@ -285,38 +242,4 @@ fn main() {
 
     let person_array_string = serialize(&person_layout, &person_array_bytes);
     println!("Person Array String: {:?}", person_array_string);
-
-    //let mut multiple_person_bytes = person_bytes_after
-    //.iter()
-    //.cloned()
-    //.chain(person_bytes_after.iter().cloned())
-    //.chain(person_two_bytes.iter().cloned())
-    //.chain(person_bytes_after.iter().cloned())
-    //.chain(person_bytes_after.iter().cloned())
-    //.collect::<Vec<u8>>();
-
-    //println!("Persons is {} bytes.", multiple_person_bytes.len());
-
-    //let mut multiple_person_typed =
-    //bincode::deserialize::<[Person; 5]>(&multiple_person_bytes).unwrap();
-
-    //multiple_person_typed[0].age = 10;
-    //multiple_person_typed[1].age = 30;
-    //multiple_person_typed[3].height = 120;
-
-    //println!("{:?}", multiple_person_typed[1]);
-    //println!("{:?}", multiple_person_typed[2]);
-
-    //// Serialize and Deserialize array
-
-    //let multiple_person_serialized = serialize(&person_layout, &multiple_person_bytes);
-
-    //println!("Multiple Serialized: {}", multiple_person_serialized);
-
-    //let mut multiple_person_deserialized = deserialize(&person_layout, multiple_person_serialized);
-
-    //let multiple_person_rebuilt =
-    //unsafe { from_bytes::<Person>(&mut multiple_person_deserialized) };
-
-    ////println!("{:?}", multiple_person_rebuilt);
 }
