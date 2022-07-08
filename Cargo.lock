@@ -31,8 +31,18 @@ name = "project_kind"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "project_kind_macros",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "project_kind_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
