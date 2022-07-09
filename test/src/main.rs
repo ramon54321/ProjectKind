@@ -1,12 +1,21 @@
+use project_kind::{HasLayout, Layout, LayoutKind};
 use project_kind_macros::component;
+
+#[component]
+struct Blob {
+    age: u8,
+}
 
 #[component]
 struct MyComponent {
     age: u8,
+    name: String,
+    height: Vec<u16>,
+    blob: Blob,
 }
 
 fn main() {
-    println!("Hello, world!");
+    println!("{:?}", MyComponent::get_layout());
 }
 
 /*
