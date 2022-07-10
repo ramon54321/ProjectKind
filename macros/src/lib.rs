@@ -159,7 +159,7 @@ pub fn component(_metadata: TokenStream, input: TokenStream) -> TokenStream {
     let item_struct_layout_token_stream = item_struct_to_layout_token_stream(item_struct.clone());
     let expanded = quote! {
         #[repr(C)]
-        //#[derive(serde::Serialize, serde::Deserialize)]
+        #[derive(serde::Serialize, serde::Deserialize)]
         #item_struct
         impl project_kind::HasLayout for #item_struct_name {
             fn get_layout() -> Layout {
