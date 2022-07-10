@@ -82,7 +82,7 @@ fn type_to_kind(field_type: Type) -> Kind {
                     .clone(),
             ))
         }
-        "String" | "Bool" | "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32"
+        "String" | "bool" | "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32"
         | "f64" => Kind::Primative(type_str_to_kind_string(&type_ident)),
         struct_name => Kind::Struct(String::from(struct_name)),
     }
