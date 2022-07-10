@@ -18,8 +18,8 @@ enum Kind {
     Struct(String),
 }
 
-fn type_string_to_kind_string(type_string: &str) -> String {
-    match type_string {
+fn type_str_to_kind_string(type_str: &str) -> String {
+    match type_str {
         "Vec" => "Array",
         "String" => "String",
         "bool" => "Bool",
@@ -36,7 +36,7 @@ fn type_string_to_kind_string(type_string: &str) -> String {
         _ => {
             eprintln!(
                 "Field type not supported in layout kind conversion: {}",
-                type_string.to_string()
+                type_str.to_string()
             );
             panic!()
         }
@@ -83,7 +83,7 @@ fn type_to_kind(field_type: Type) -> Kind {
             ))
         }
         "String" | "Bool" | "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32"
-        | "f64" => Kind::Primative(type_string_to_kind_string(&type_ident)),
+        | "f64" => Kind::Primative(type_str_to_kind_string(&type_ident)),
         struct_name => Kind::Struct(String::from(struct_name)),
     }
 }
@@ -152,7 +152,7 @@ fn item_struct_to_layout_token_stream(item_struct: ItemStruct) -> proc_macro2::T
 }
 
 #[proc_macro_attribute]
-pub fn component(metadata: TokenStream, input: TokenStream) -> TokenStream {
+pub fn component(_metadata: TokenStream, input: TokenStream) -> TokenStream {
     let item_struct =
         parse::<ItemStruct>(TokenStream::from(input)).expect("Could not parse item struct");
     let item_struct_name = item_struct.ident.clone();

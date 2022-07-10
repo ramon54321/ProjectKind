@@ -16,14 +16,14 @@ pub trait HasLayout {
     fn get_layout() -> Layout;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Layout {
     pub name: String,
     pub kind: LayoutKind,
     pub fields: Option<Vec<Layout>>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LayoutKind {
     Array,
     Struct,
