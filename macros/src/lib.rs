@@ -157,6 +157,7 @@ pub fn component(_metadata: TokenStream, input: TokenStream) -> TokenStream {
         parse::<ItemStruct>(TokenStream::from(input)).expect("Could not parse item struct");
     let item_struct_name = item_struct.ident.clone();
     let item_struct_layout_token_stream = item_struct_to_layout_token_stream(item_struct.clone());
+    let item_struct_name_string = item_struct_name.to_string();
     let expanded = quote! {
         #[repr(C)]
         #[derive(serde::Serialize, serde::Deserialize)]
@@ -164,6 +165,9 @@ pub fn component(_metadata: TokenStream, input: TokenStream) -> TokenStream {
         impl project_kind::HasLayout for #item_struct_name {
             fn get_layout() -> Layout {
                 #item_struct_layout_token_stream
+            }
+            fn get_name(&self) -> String {
+                String::from(#item_struct_name_string)
             }
         }
     };

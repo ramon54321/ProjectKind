@@ -14,6 +14,7 @@ fn get_in_slice<'a, T>(slice: &'a [u8], offset: usize) -> Option<&'a T> {
 
 pub trait HasLayout {
     fn get_layout() -> Layout;
+    fn get_name(&self) -> String;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
