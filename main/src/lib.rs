@@ -53,7 +53,7 @@ impl Layout {
                     let size = element_layout.size_in_bytes(&bytes[(8 + byte_count)..]);
                     byte_count = byte_count + size;
                 }
-                byte_count
+                byte_count + 8
             }
             LayoutKind::Struct => {
                 let mut byte_count = 0;
